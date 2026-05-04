@@ -17,12 +17,15 @@ import ctypes
 import json
 import platform
 import socket
+import sys
 from ctypes import wintypes
 
 
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
 INPUT_KEYBOARD = 1
+IS_WINDOWS = platform.system() == "Windows"
+ULONG_PTR = wintypes.WPARAM
 
 VK_CODES = {
     "backspace": 0x08,
@@ -38,7 +41,7 @@ class KEYBDINPUT(ctypes.Structure):
         ("wScan", wintypes.WORD),
         ("dwFlags", wintypes.DWORD),
         ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.POINTER(wintypes.ULONG)),
+        ("dwExtraInfo", ULONG_PTR),
     ]
 
 
@@ -61,7 +64,7 @@ def _send_input(*inputs: INPUT) -> None:
 def _keyboard_input(vk: int = 0, scan: int = 0, flags: int = 0) -> INPUT:
     return INPUT(
         type=INPUT_KEYBOARD,
-        union=INPUT_UNION(ki=KEYBDINPUT(vk, scan, flags, 0, None)),
+        union=INPUT_UNION(ki=KEYBDINPUT(vk, scan, flags, 0, 0)),
     )
 
 
@@ -84,16 +87,35 @@ def press_key(key: str) -> None:
     _send_input(_keyboard_input(vk=vk), _keyboard_input(vk=vk, flags=KEYEVENTF_KEYUP))
 
 
-def handle_event(event: dict[str, object]) -> None:
+def handle_event(event: dict[str, object], print_only: bool = False) -> None:
     event_type = event.get("type")
+    if event_type == "hello":
+        print("Handshake received")
+        return
+
+    if print_only or not IS_WINDOWS:
+        print(f"Would type: {event}")
+        return
+
     if event_type == "text":
         type_text(str(event.get("value", "")))
     elif event_type == "key":
         press_key(str(event.get("key", "")))
+    else:
+        print(f"Unsupported event type: {event_type}")
 
 
-def serve(host: str, port: int) -> None:
-    if platform.system() != "Windows":
+def _local_ip_hint() -> str:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("8.8.8.8", 80))
+            return probe.getsockname()[0]
+    except OSError:
+        return "unknown"
+
+
+def serve(host: str, port: int, print_only: bool = False) -> None:
+    if not IS_WINDOWS:
         print("This receiver currently injects keys on Windows only.")
         print("Incoming events will be printed instead of typed.")
 
@@ -102,10 +124,14 @@ def serve(host: str, port: int) -> None:
         server.bind((host, port))
         server.listen(1)
         print(f"Remote keyboard receiver listening on {host}:{port}")
+        if host in {"0.0.0.0", ""}:
+            print(f"Try connecting the tablet to {_local_ip_hint()}:{port}")
+        sys.stdout.flush()
 
         while True:
             connection, address = server.accept()
             print(f"Connected by {address[0]}:{address[1]}")
+            sys.stdout.flush()
             with connection, connection.makefile("r", encoding="utf-8") as lines:
                 for line in lines:
                     try:
@@ -115,18 +141,32 @@ def serve(host: str, port: int) -> None:
                         continue
 
                     print(event)
-                    if platform.system() == "Windows":
-                        handle_event(event)
+                    sys.stdout.flush()
+                    try:
+                        handle_event(event, print_only=print_only)
+                    except OSError as error:
+                        print(f"Failed to inject input: {error}")
+                        print(
+                            "Tip: do not run the target app as administrator "
+                            "unless this receiver is also running as administrator."
+                        )
+                    sys.stdout.flush()
 
             print("Disconnected")
+            sys.stdout.flush()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=5050)
+    parser.add_argument(
+        "--print-only",
+        action="store_true",
+        help="Print incoming events without typing them.",
+    )
     args = parser.parse_args()
-    serve(args.host, args.port)
+    serve(args.host, args.port, print_only=args.print_only)
 
 
 if __name__ == "__main__":

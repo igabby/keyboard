@@ -11,8 +11,23 @@ Run the receiver on the device you want to type into:
 python tools\remote_keyboard_receiver.py --host 0.0.0.0 --port 5050
 ```
 
+If `python` opens the Microsoft Store or fails before the script starts, install
+Python from <https://www.python.org/downloads/windows/> and enable "Add
+python.exe to PATH" during setup. You can also disable the broken Store aliases
+in Windows Settings: Apps > Advanced app settings > App execution aliases.
+
 On Windows, the receiver types into whichever app currently has keyboard focus.
-Allow the port through Windows Firewall if prompted.
+Allow the port through Windows Firewall if prompted. If the receiver prints
+events but does not type into the focused app, run the receiver as administrator
+when the target app is also running as administrator.
+
+To test the connection without typing into another app, run:
+
+```powershell
+python tools\remote_keyboard_receiver.py --host 0.0.0.0 --port 5050 --print-only
+```
+
+After it starts, use the IP address printed by the receiver in the tablet app.
 
 ## Tablet App
 
