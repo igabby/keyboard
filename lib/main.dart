@@ -29,6 +29,16 @@ Color _keyBackgroundColor(String label, bool active) {
       return const Color(0xFF7C2B12); // brown
     case 'Space':
       return const Color(0xFF06B6D4); // cyan
+    // make home-row keys slightly darker to highlight touch points
+    case 'a':
+    case 's':
+    case 'd':
+    case 'f':
+    case 'j':
+    case 'k':
+    case 'l':
+    case ';':
+      return const Color(0xFF9E9E9E);
     default:
       return const Color(0xFFBDBDBD); // default grey
   }
@@ -154,13 +164,32 @@ class _RemoteKeyboardPageState extends State<RemoteKeyboardPage> {
         _statusMessage = 'Connected to $host:$port';
       });
       _sendEvent({'type': 'hello', 'app': 'remote_keyboard'});
-    } on Object catch (e) {
+    } on Object catch (e, st) {
       if (!mounted) return;
+      final msg = 'Connection failed: ${e.runtimeType}: $e';
       setState(() {
         _socket = null;
         _status = RemoteStatus.failed;
-        _statusMessage = 'Connection failed: $e';
+        _statusMessage = msg;
       });
+      debugPrint('Connection failed: $e');
+      debugPrint('$st');
+      // show full exception and stack trace so user can copy details
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Connection Error'),
+          content: SingleChildScrollView(
+            child: SelectableText('$e\n\n$st'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -206,22 +235,24 @@ class _RemoteKeyboardPageState extends State<RemoteKeyboardPage> {
     }
     if (value == 'Backspace') {
       _recordBackspace();
-      _sendEvent({'type': 'key', 'value': 'Backspace'});
+      _sendEvent({'type': 'key', 'key': 'backspace'});
       return;
     }
     if (value == 'Delete') {
-      _sendEvent({'type': 'key', 'value': 'Delete'});
+      _sendEvent({'type': 'key', 'key': 'delete'});
       return;
     }
     if (value == 'Tab') {
       _recordInput('\t');
-      _sendEvent({'type': 'text', 'value': '\t'});
+      // send as a key event so remote can handle it as a control key
+      _sendEvent({'type': 'key', 'key': 'tab'});
       setState(() => _shiftActive = false);
       return;
     }
     if (value == 'Enter') {
       _recordInput('\n');
-      _sendEvent({'type': 'text', 'value': '\n'});
+      // send as a key event so remote can handle it as Enter
+      _sendEvent({'type': 'key', 'key': 'enter'});
       setState(() => _shiftActive = false);
       return;
     }
@@ -239,8 +270,7 @@ class _RemoteKeyboardPageState extends State<RemoteKeyboardPage> {
     if (_shiftActive) setState(() => _shiftActive = false);
   }
 
-  String get _previewText =>
-      _recentInput.isEmpty ? 'Remote input preview' : _recentInput.join();
+  // Preview text removed (no UI). Recent input still recorded internally.
 
   @override
   Widget build(BuildContext context) {
@@ -265,8 +295,6 @@ class _RemoteKeyboardPageState extends State<RemoteKeyboardPage> {
                   });
                 },
               ),
-              const SizedBox(height: 10),
-              _PreviewStrip(text: _previewText),
               const SizedBox(height: 10),
               // scrolling disabled
               Expanded(
@@ -393,35 +421,7 @@ class _ConnectionBar extends StatelessWidget {
   }
 }
 
-class _PreviewStrip extends StatelessWidget {
-  final String text;
-  const _PreviewStrip({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: 56,
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE9F2EC),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.fade,
-        softWrap: false,
-        style: const TextStyle(
-          color: Color(0xFF15221A),
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
+// Preview strip removed — input is still recorded internally but no longer shown.
 
 class _KeyboardSurface extends StatelessWidget {
   final ValueChanged<String> onKeyPressed;
