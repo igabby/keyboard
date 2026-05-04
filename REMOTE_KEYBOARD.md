@@ -44,4 +44,8 @@ The app sends newline-delimited JSON over TCP:
 {"type":"key","key":"backspace"}
 ```
 
-Supported special keys are `backspace`, `enter`, `tab`, and `escape`.
+Supported special keys include `escape`, `f1`-`f12`, `printscreen`,
+`scrolllock`, `pause`, `backspace`, `tab`, `capslock`, `enter`, `shift`,
+`ctrl`, `alt`, `meta`, `contextmenu`, `insert`, `delete`, `home`, `end`,
+`pageup`, `pagedown`, `arrowup`, `arrowdown`, `arrowleft`, `arrowright`, and
+`numlock`.
