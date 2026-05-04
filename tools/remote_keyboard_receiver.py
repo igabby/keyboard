@@ -43,6 +43,7 @@ VK_CODES = {
     "arrowdown": 0x28,
     "arrowleft": 0x25,
     "arrowright": 0x27,
+    "delete": 0x2E,
 }
 
 
@@ -145,7 +146,16 @@ def handle_event(event: dict[str, object], print_only: bool = False) -> None:
     if event_type == "text":
         type_text(str(event.get("value", "")))
     elif event_type == "key":
-        press_key(str(event.get("key", "")))
+        # Accept either 'key' or older 'value' fields, normalize to lowercase
+        raw_key = event.get("key") or event.get("value") or ""
+        key_str = str(raw_key).strip().lower()
+        if not key_str:
+            print(f"Empty key in event: {event}")
+            return
+        # common synonyms
+        if key_str == 'del':
+            key_str = 'delete'
+        press_key(key_str)
     else:
         print(f"Unsupported event type: {event_type}")
 
