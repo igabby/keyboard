@@ -26,6 +26,7 @@ KEYEVENTF_UNICODE = 0x0004
 INPUT_KEYBOARD = 1
 IS_WINDOWS = platform.system() == "Windows"
 ULONG_PTR = wintypes.WPARAM
+USER32 = ctypes.WinDLL("user32", use_last_error=True) if IS_WINDOWS else None
 
 VK_CODES = {
     "backspace": 0x08,
@@ -45,20 +46,54 @@ class KEYBDINPUT(ctypes.Structure):
     ]
 
 
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", wintypes.LONG),
+        ("dy", wintypes.LONG),
+        ("mouseData", wintypes.DWORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ULONG_PTR),
+    ]
+
+
+class HARDWAREINPUT(ctypes.Structure):
+    _fields_ = [
+        ("uMsg", wintypes.DWORD),
+        ("wParamL", wintypes.WORD),
+        ("wParamH", wintypes.WORD),
+    ]
+
+
 class INPUT_UNION(ctypes.Union):
-    _fields_ = [("ki", KEYBDINPUT)]
+    _fields_ = [
+        ("mi", MOUSEINPUT),
+        ("ki", KEYBDINPUT),
+        ("hi", HARDWAREINPUT),
+    ]
 
 
 class INPUT(ctypes.Structure):
     _fields_ = [("type", wintypes.DWORD), ("union", INPUT_UNION)]
 
 
-def _send_input(*inputs: INPUT) -> None:
-    sent = ctypes.windll.user32.SendInput(
-        len(inputs), (INPUT * len(inputs))(*inputs), ctypes.sizeof(INPUT)
+if USER32 is not None:
+    USER32.SendInput.argtypes = (
+        wintypes.UINT,
+        ctypes.POINTER(INPUT),
+        ctypes.c_int,
     )
+    USER32.SendInput.restype = wintypes.UINT
+
+
+def _send_input(*inputs: INPUT) -> None:
+    if USER32 is None:
+        return
+
+    input_array = (INPUT * len(inputs))(*inputs)
+    sent = USER32.SendInput(len(inputs), input_array, ctypes.sizeof(INPUT))
     if sent != len(inputs):
-        raise ctypes.WinError()
+        raise ctypes.WinError(ctypes.get_last_error())
 
 
 def _keyboard_input(vk: int = 0, scan: int = 0, flags: int = 0) -> INPUT:
